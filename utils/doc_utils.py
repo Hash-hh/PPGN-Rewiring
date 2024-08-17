@@ -20,7 +20,10 @@ def write_to_file_doc(train_acc, train_loss, val_acc, val_loss, epoch, config):
         f = pd.read_csv(fullpath)
     else:
         f = pd.DataFrame(columns=columns)
-    f = f.append(pd.DataFrame([val], columns=columns))
+    # f = f.append(pd.DataFrame([val], columns=columns))
+    new_row = pd.DataFrame([val], columns=columns)
+    f = pd.concat([f, new_row], ignore_index=True)
+
     f.to_csv(fullpath, index=False)
 
 

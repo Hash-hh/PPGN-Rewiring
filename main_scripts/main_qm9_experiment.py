@@ -27,8 +27,9 @@ def main():
     # capture the config path from the run arguments
     # then process the json configuration file
     try:
-        args = get_args()
-        config = process_config(args.config, dataset_name='QM9')
+        # args = get_args()
+        # config = process_config(args.config, dataset_name='QM9')
+        config = process_config('configs/qm9_config.json', dataset_name='QM9')
 
     except Exception as e:
         print("missing or invalid arguments %s" % e)

@@ -4,7 +4,7 @@ import layers.layers as layers
 import layers.modules as modules
 
 
-class BaseModel(nn.Module):
+class Downstream(nn.Module):
     def __init__(self, config):
         """
         Build the model computation graph, until scores/values are returned at the end
@@ -14,7 +14,7 @@ class BaseModel(nn.Module):
         self.config = config
         use_new_suffix = config.architecture.new_suffix  # True or False
         block_features = config.architecture.block_features  # List of number of features in each regular block
-        original_features_num = config.node_labels + 1 # Number of features of the input
+        original_features_num = (config.node_labels + 1 + 1) * 2  # Number of features of the input # last +1 is for edge weight, *2 is for cat of a and b
 
         # First part - sequential mlp blocks
         last_layer_features = original_features_num
@@ -38,9 +38,14 @@ class BaseModel(nn.Module):
             self.fc_layers.append(modules.FullyConnected(512, 256))
             self.fc_layers.append(modules.FullyConnected(256, self.config.num_classes, activation_fn=None))
 
-    def forward(self, input):
-        x = input
-        scores = torch.tensor(0, device=input.device, dtype=x.dtype)
+    def forward(self, repeated_data, new_data):
+        a = repeated_data
+        a_padding = torch.zeros(a.size(0), 1, a.size(2), a.size(3), device=a.device)  # padding for edge weight (no edge weights in the original data)
+        a = torch.cat([a, a_padding], dim=1)
+
+        b = new_data
+        x = torch.cat([a, b], dim=1)
+        scores = torch.tensor(0, device=repeated_data.device, dtype=a.dtype)
 
         for i, block in enumerate(self.reg_blocks):
 

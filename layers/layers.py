@@ -2,7 +2,7 @@ import torch
 
 
 def diag_offdiag_maxpool(input):
-    N = input.shape[-1]
+    N = input.shape[-1]  # number of nodes (atoms)
 
     max_diag = torch.max(torch.diagonal(input, dim1=-2, dim2=-1), dim=2)[0]  # BxS
 

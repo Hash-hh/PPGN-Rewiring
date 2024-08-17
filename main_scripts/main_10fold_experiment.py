@@ -21,18 +21,21 @@ from utils.config import process_config
 from utils.dirs import create_dirs
 from utils import doc_utils
 from utils.utils import get_args
+import json
 
 
 def main():
     # capture the config path from the run arguments
     # then process the json configuration file
-    try:
-        args = get_args()
-        config = process_config(args.config, args.dataset_name)
+    # try:
 
-    except Exception as e:
-        print("missing or invalid arguments {}".format(e))
-        exit(0)
+    # args = get_args()
+    # config = process_config(args.config, args.dataset_name)
+    config = process_config('configs/10fold_config.json', '')
+
+    # except Exception as e:
+    #     print("missing or invalid arguments {}".format(e))
+    #     exit(0)
 
     # os.environ['CUDA_LAUNCH_BLOCKING'] = "1"  # TODO uncomment only for CUDA error debugging
     os.environ["CUDA_VISIBLE_DEVICES"] = config.gpu

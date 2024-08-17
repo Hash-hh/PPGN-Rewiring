@@ -40,7 +40,7 @@ def load_dataset(ds_name):
     return graphs, np.array(labels)
 
 
-def load_qm9(target_param):
+def load_qm9(target_param, candidates):
     """
     Constructs the graphs and labels of QM9 data set, already split to train, val and test sets
     :return: 6 numpy arrays:
@@ -51,14 +51,18 @@ def load_qm9(target_param):
                  test_graphs: N_test,
                  test_labels: N_test x 12, (or Nx1 is target_param is not False)
                  each graph of shape: 19 x Nodes x Nodes (CHW representation)
+
+    update: added return of PyG data list for each set
     """
-    train_graphs, train_labels = load_qm9_aux('train', target_param)
-    val_graphs, val_labels = load_qm9_aux('val', target_param)
-    test_graphs, test_labels = load_qm9_aux('test', target_param)
-    return train_graphs, train_labels, val_graphs, val_labels, test_graphs, test_labels
+    train_graphs, train_labels, train_pyg_list = load_qm9_aux('train', target_param, candidates)
+    val_graphs, val_labels, val_pyg_list = load_qm9_aux('val', target_param, candidates)
+    test_graphs, test_labels, test_pyg_list = load_qm9_aux('test', target_param, candidates)
+    return (train_graphs, train_labels, train_pyg_list,
+            val_graphs, val_labels, val_pyg_list,
+            test_graphs, test_labels, test_pyg_list)
 
 
-def load_qm9_aux(which_set, target_param):
+def load_qm9_aux(which_set, target_param, candidate_edges=False):
     """
     Read and construct the graphs and labels of QM9 data set, already split to train, val and test sets
     :param which_set: 'test', 'train' or 'val'
@@ -67,7 +71,7 @@ def load_qm9_aux(which_set, target_param):
              labels: N x 12, (or Nx1 is target_param is not False)
              each graph of shape: 19 x Nodes x Nodes (CHW representation)
     """
-    base_path = BASE_DIR + "/data/QM9/QM9_{}.p".format(which_set)
+    base_path = BASE_DIR + "/data/QM9_candidates/QM9_{}.p".format(which_set)
     graphs, labels = [], []
     with open(base_path, 'rb') as f:
         data = pickle.load(f)
@@ -82,14 +86,26 @@ def load_qm9_aux(which_set, target_param):
             graph[:, :, 14] = instance['usable_features']['affinity']
             graph[:, :, 15:] = instance['usable_features']['edge_features']  # shape n x n x 4
             graphs.append(graph)
-    graphs = np.array(graphs)
+    graphs = np.array(graphs, dtype="object")
     for i in range(graphs.shape[0]):
-        graphs[i] = np.transpose(graphs[i], [2, 0, 1])
-    labels = np.array(labels).squeeze()  # shape N x 12
+        graphs[i] = np.transpose(graphs[i], [2, 0, 1])  # [nodes_num, nodes_num, features] -> [features, nodes_num, nodes_num]
+    labels = np.array(labels).squeeze()  # shape N x 12  - remove the initial singleton dimension
     if target_param is not False:  # regression over a specific target, not all 12 elements
         labels = labels[:, target_param].reshape(-1, 1)  # shape N x 1
 
-    return graphs, labels
+    if candidate_edges:
+        base_path_pyg = BASE_DIR + "/data/QM9_candidates/QM9_pyg_{}.p".format(which_set)
+
+        pyg_graphs = []
+        # Returning the PyG data list as well
+        with open(base_path_pyg, 'rb') as f:
+            pyg_data_list = pickle.load(f)
+            for data in pyg_data_list:
+                pyg_graphs.append(data)
+
+        return graphs, labels, pyg_graphs
+
+    return graphs, labels, None
 
 
 def get_train_val_indexes(num_val, ds_name):
@@ -133,78 +149,132 @@ def get_parameter_split(ds_name):
     return train_idx, test_idx
 
 
-def group_same_size(graphs, labels):
+def group_same_size(graphs, labels, graph_pyg=None):
     """
-    group graphs of same size to same array
-    :param graphs: numpy array of shape (num_of_graphs) of numpy arrays of graphs adjacency matrix
+    Group graphs of the same size into the same array.
+
+    :param graphs: numpy array of shape (num_of_graphs) of numpy arrays of graphs' adjacency matrix
     :param labels: numpy array of labels
-    :return: two numpy arrays. graphs arrays in the shape (num of different size graphs) where each entry is a numpy array
-            in the shape (number of graphs with this size, num vertex, num. vertex, num vertex labels)
-            the second arrayy is labels with correspons shape
+    :param graph_pyg: list of graph objects in PyTorch Geometric format, or None
+    :return: three lists:
+             - r_graphs: list of numpy arrays of graphs grouped by size
+             - r_labels: list of numpy arrays of labels grouped by graph size
+             - r_graph_pyg: list of lists of PyTorch Geometric graph objects grouped by size or None if graph_pyg is None
     """
-    sizes = list(map(lambda t: t.shape[1], graphs))
+    sizes = list(map(lambda t: t.shape[1], graphs))  # Size based on the number of vertices in adjacency matrices
     indexes = np.argsort(sizes)
     graphs = graphs[indexes]
     labels = labels[indexes]
+
     r_graphs = []
     r_labels = []
+    r_graph_pyg = [] if graph_pyg is not None else None
+
+    if graph_pyg is not None:
+        graph_pyg = [graph_pyg[i] for i in indexes]  # Reorder graph_pyg according to the sorted indexes
+
     one_size = []
+    one_pyg = [] if graph_pyg is not None else None
     start = 0
-    size = graphs[0].shape[1]
+    size = graphs[0].shape[1]  # Smallest graph by number of vertices
+
     for i in range(len(graphs)):
         if graphs[i].shape[1] == size:
             one_size.append(np.expand_dims(graphs[i], axis=0))
+            if graph_pyg is not None:
+                one_pyg.append(graph_pyg[i])
         else:
             r_graphs.append(np.concatenate(one_size, axis=0))
             r_labels.append(np.array(labels[start:i]))
+            if graph_pyg is not None:
+                r_graph_pyg.append(one_pyg)
+                one_pyg = [graph_pyg[i]]
             start = i
-            one_size = []
+            one_size = [np.expand_dims(graphs[i], axis=0)]
             size = graphs[i].shape[1]
-            one_size.append(np.expand_dims(graphs[i], axis=0))
+
     r_graphs.append(np.concatenate(one_size, axis=0))
     r_labels.append(np.array(labels[start:]))
-    return r_graphs, r_labels
+    if graph_pyg is not None:
+        r_graph_pyg.append(one_pyg)
+
+    return r_graphs, r_labels, r_graph_pyg
 
 
 # helper method to shuffle each same size graphs array
-def shuffle_same_size(graphs, labels):
-    r_graphs, r_labels = [], []
+def shuffle_same_size(graphs, labels, graph_pyg=None):
+    """
+    Shuffle graphs, labels, and optionally PyTorch Geometric graphs of the same size while maintaining correspondence.
+
+    :param graphs: list of numpy arrays of graphs' adjacency matrices
+    :param labels: list of numpy arrays of labels
+    :param graph_pyg: list of lists of PyTorch Geometric graph objects, or None
+    :return: shuffled versions of the input arrays
+    """
+    r_graphs, r_labels, r_graph_pyg = [], [], [] if graph_pyg is not None else None
+
     for i in range(len(labels)):
-        curr_graph, curr_labels = shuffle(graphs[i], labels[i])
+        if graph_pyg is not None:
+            curr_graph, curr_labels, curr_pyg = shuffle(graphs[i], labels[i], graph_pyg[i])
+            r_graph_pyg.append(curr_pyg)
+        else:
+            curr_graph, curr_labels, _ = shuffle(graphs[i], labels[i], None)
+
         r_graphs.append(curr_graph)
         r_labels.append(curr_labels)
-    return r_graphs, r_labels
+
+    return r_graphs, r_labels, r_graph_pyg
 
 
-def split_to_batches(graphs, labels, size):
+def split_to_batches(graphs, labels, size, graph_pyg):
     """
-    split the same size graphs array to batches of specified size
-    last batch is in size num_of_graphs_this_size % size
+    Split the same size graphs array into batches of specified size.
+    The last batch will have the size of num_of_graphs_this_size % size.
+
     :param graphs: array of arrays of same size graphs
     :param labels: the corresponding labels of the graphs
+    :param graph_pyg: list of lists of PyTorch Geometric graph objects
     :param size: batch size
-    :return: two arrays. graphs array of arrays in size (batch, num vertex, num vertex. num vertex labels)
-                corresponds labels
+    :return: three arrays:
+             - graphs array of arrays in size (batch, num vertex, num vertex. num vertex labels)
+             - corresponds labels
+             - corresponding graph_pyg
     """
     r_graphs = []
     r_labels = []
+    r_graph_pyg = [] if graph_pyg is not None else None
+
     for k in range(len(graphs)):
-        r_graphs = r_graphs + np.split(graphs[k], [j for j in range(size, graphs[k].shape[0], size)])
-        r_labels = r_labels + np.split(labels[k], [j for j in range(size, labels[k].shape[0], size)])
+        num_batches = (len(graphs[k]) + size - 1) // size  # Calculates the number of batches
+        for i in range(num_batches):
+            start_idx = i * size
+            end_idx = min((i + 1) * size, len(graphs[k]))
 
-    # Avoid bug for batch_size=1, where instead of creating numpy array of objects, we had numpy array of floats with
-    # different sizes - could not reshape
-    ret1, ret2 = np.empty(len(r_graphs), dtype=object), np.empty(len(r_labels), dtype=object)
-    ret1[:] = r_graphs
-    ret2[:] = r_labels
-    return ret1, ret2
+            r_graphs.append(graphs[k][start_idx:end_idx])
+            r_labels.append(labels[k][start_idx:end_idx])
+            if graph_pyg is not None:
+                r_graph_pyg.append(graph_pyg[k][start_idx:end_idx])
+
+    # Create arrays of objects to avoid potential numpy dtype issues
+    ret1, ret2, ret3 = (np.array(r_graphs, dtype=object),
+                        np.array(r_labels, dtype=object),
+                        r_graph_pyg if graph_pyg is not None else None)
+                        # np.array(r_graph_pyg, dtype=object) if graph_pyg is not None else None)
+
+    return ret1, ret2, ret3
 
 
-# helper method to shuffle the same way graphs and labels arrays
-def shuffle(graphs, labels):
+def shuffle(graphs, labels, pyg_graphs):
+    """
+    Helper method to shuffle the same way graphs, labels, and PyTorch Geometric graphs arrays.
+    """
     shf = np.arange(labels.shape[0], dtype=np.int32)
     np.random.shuffle(shf)
-    return np.array(graphs)[shf], labels[shf]
+    shuffled_graphs = np.array(graphs)[shf]
+    shuffled_labels = labels[shf]
+    shuffled_pyg_graphs = [pyg_graphs[i] for i in shf] if pyg_graphs is not None else None
+    return shuffled_graphs, shuffled_labels, shuffled_pyg_graphs
+
 
 
 def normalize_graph(curr_graph):

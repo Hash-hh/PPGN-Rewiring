@@ -3,13 +3,15 @@ import models
 import torch
 import torch.nn.functional as F
 from models.base_model import BaseModel
+from models.hybrid_model import HybridModel
 
 
 class ModelWrapper(object):
     def __init__(self, config, data):
         self.config = config
         self.data = data
-        self.model = BaseModel(config).cuda()
+        # self.model = BaseModel(config).cuda()  # TODO: Use hybrid model here
+        self.model = HybridModel(config).cuda()
 
     # save function that saves the checkpoint in the path defined in the config file
     def save(self, best: bool, epoch: int, optimizer: torch.optim.Optimizer):
@@ -54,8 +56,9 @@ class ModelWrapper(object):
             correct_predictions = torch.eq(torch.argmax(scores, dim=1), labels).sum().cpu().item()
             return loss, correct_predictions
 
-    def run_model_get_loss_and_results(self, input, labels):
-        return self.loss_and_results(self.model(input), labels)
+    def run_model_get_loss_and_results(self, input, labels, graphs_pyg):
+        scores, labels = self.model(input, labels, graphs_pyg)  # feeding labels to get labels * train_ensemble
+        return self.loss_and_results(scores, labels)
 
     def train(self):
         self.model.train()

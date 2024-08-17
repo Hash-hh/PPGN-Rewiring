@@ -4,7 +4,7 @@ import torch.nn as nn
 
 class RegularBlock(nn.Module):
     """
-    Imputs: N x input_depth x m x m
+    Inputs: N x input_depth x m x m
     Take the input through 2 parallel MLP routes, multiply the result, and add a skip-connection at the end.
     At the skip-connection, reduce the dimension back to output_depth
     """

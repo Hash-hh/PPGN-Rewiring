@@ -63,7 +63,7 @@ class Trainer(object):
 
         # initialize tqdm
         tt = tqdm(range(self.data_loader.num_iterations_train), total=self.data_loader.num_iterations_train,
-                  desc="Epoch-{}-".format(num_epoch))
+                  desc="Epoch-{}-".format(num_epoch))  # tqdm progress bar (total is the number of graphs in the train set)
 
         total_loss = 0.
         total_correct_labels_or_distances = 0.
@@ -94,8 +94,11 @@ class Trainer(object):
 
         :return: tuple of (loss, num_correct_labels or distances_array)
         """
-        graphs, labels = self.data_loader.next_batch()
-        loss, correct_labels_or_distances = self.model_wrapper.run_model_get_loss_and_results(graphs, labels)
+        graphs, labels, graphs_pyg = self.data_loader.next_batch()
+
+        # TODO: deal with candidate edges
+
+        loss, correct_labels_or_distances = self.model_wrapper.run_model_get_loss_and_results(graphs, labels, graphs_pyg)
 
         self.optimizer.zero_grad()
         loss.backward()
@@ -124,9 +127,9 @@ class Trainer(object):
         # for cur_it in tt:
         for cur_it in range(self.data_loader.num_iterations_val):
             # One Train step on the current batch
-            graph, label = self.data_loader.next_batch()
+            graph, label, graphs_pyg = self.data_loader.next_batch()
             # label = np.expand_dims(label, 0)
-            loss, correct_or_dist = self.model_wrapper.run_model_get_loss_and_results(graph, label)
+            loss, correct_or_dist = self.model_wrapper.run_model_get_loss_and_results(graph, label, graphs_pyg)
 
             # update metrics returned from train_step func
             total_loss += loss.cpu().item()
@@ -175,9 +178,9 @@ class Trainer(object):
         # Iterate over batches
         for cur_it in tt:
             # One Train step on the current batch
-            graph, label = self.data_loader.next_batch()
+            graph, label, graphs_pyg = self.data_loader.next_batch()
             # label = np.expand_dims(label, 0)
-            loss, dists = self.model_wrapper.run_model_get_loss_and_results(graph, label)
+            loss, dists = self.model_wrapper.run_model_get_loss_and_results(graph, label, graphs_pyg)
             # update metrics returned from train_step func
             total_loss += loss.cpu().item()
             total_dists += dists
