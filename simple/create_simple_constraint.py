@@ -43,6 +43,7 @@ def create_exactly_k(n, k):
         for j in range(2):
             dp_prev[i][j] = literals[-(i + 1)] if not j else literals[i + 1]
 
+    # print("int(math.log2(n)) + 1): ", int(math.log2(n)) + 1)
     for num_arr in (n // (2 ** i) for i in range(1, int(math.log2(n)) + 1)):
         dp_curr = np.ndarray((num_arr, k + 1), dtype=Node)
         dp_curr.fill(None)

@@ -129,14 +129,14 @@ class GraphRewirer(torch.nn.Module):
 
             sampled_edge_weights = torch.stack([marginals] * VE, dim=0)  # (B, Nmax, 1) -> (train_ensemble (VE), B, Nmax, 1)
             if not self.training:
-                sampled_edge_weights = sampled_edge_weights * node_mask
+                sampled_edge_weights = sampled_edge_weights * node_mask  # when not training, we put the marginal for non-sampled nodes to 0
 
             # num_edges x E x VE
             add_edge_weight = sampled_edge_weights.permute((1, 2, 3, 0))[real_node_mask].reshape(-1, E * VE)  # for each add candidate, we have E x VE scores (marginal from SIMPLE)
             add_edge_index = edge_candidate_idx.T
 
             if not self.directed_sampling:
-                add_edge_index, add_edge_weight = to_undirected(add_edge_index,  # candidate edges in COO format [~2, nnedge_candid]
+                add_edge_index, add_edge_weight = to_undirected(add_edge_index,  # candidate edges in COO format [2, nnedge_candid]
                                                                 add_edge_weight,  # candidate edge weights  [nnedge_candid, E x VE]
                                                                 num_nodes=dat_batch.num_nodes)
 

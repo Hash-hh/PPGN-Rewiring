@@ -46,7 +46,7 @@ class ModelWrapper(object):
         :return: tuple of (loss tensor, dists numpy array) for QM9
                           (loss tensor, number of correct predictions) for classification graphs
         """
-        if self.config.dataset_name == 'QM9':
+        if self.config.dataset_name == 'QM9' or self.config.dataset_name == 'ZINC':
             differences = (scores-labels).abs().sum(dim=0)
             loss = differences.sum()
             dists = differences.detach().cpu().numpy()
@@ -56,8 +56,9 @@ class ModelWrapper(object):
             correct_predictions = torch.eq(torch.argmax(scores, dim=1), labels).sum().cpu().item()
             return loss, correct_predictions
 
-    def run_model_get_loss_and_results(self, input, labels, graphs_pyg):
-        scores, labels = self.model(input, labels, graphs_pyg)  # feeding labels to get labels * train_ensemble
+    def run_model_get_loss_and_results(self, input, labels, graphs_pyg, train=True):
+        # scores = self.model(input)  # for when only using base model
+        scores, labels = self.model(input, labels, graphs_pyg, train)  # feeding labels to get labels * train_ensemble
         return self.loss_and_results(scores, labels)
 
     def train(self):

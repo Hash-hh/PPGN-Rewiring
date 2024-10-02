@@ -28,7 +28,7 @@ class GINEConv(MessagePassing):
         elif edge_weight is None:
             edge_weight = x.new_ones(edge_index.shape[1], 1)
 
-        edge_embedding = self.bond_encoder(edge_attr) if edge_attr is not None else None
+        edge_embedding = self.bond_encoder(edge_attr.float()) if edge_attr is not None else None
         out = self.mlp((1 + self.eps) * x + self.propagate(edge_index,
                                                            x=x,
                                                            edge_attr=edge_embedding,

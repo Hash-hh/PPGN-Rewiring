@@ -29,7 +29,13 @@ def main():
     try:
         # args = get_args()
         # config = process_config(args.config, dataset_name='QM9')
-        config = process_config('configs/qm9_config.json', dataset_name='QM9')
+
+        # config = process_config('configs/qm9_config.json', dataset_name='QM9')
+        config = process_config('configs/ZINC_config.json', dataset_name='ZINC')
+        #
+        # add specific config.parent_dir for testing (comment out for real experiments)
+        # config.parent_dir = 'QM9QM92024_08_16_07_36_37'
+        # config.checkpoint_dir = os.path.join("../experiments", config.parent_dir, "checkpoint/")
 
     except Exception as e:
         print("missing or invalid arguments %s" % e)
@@ -42,11 +48,14 @@ def main():
     # torch.backends.cudnn.deterministic = True  # can impact performance
     # torch.backends.cudnn.benchmark = False  # can impact performance
 
+    print("Dataset: ", config.dataset_name)
+    print("Debug: ", config.debug)
     print("lr = {0}".format(config.hyperparams.learning_rate))
     print("decay = {0}".format(config.hyperparams.decay_rate))
     if config.target_param is not False:  # (0 == False) while (0 is not False)
         print("target parameter: {0}".format(config.target_param))
     print(config.architecture)
+    print("Rewiring: ", config.rewiring)
     # create the experiments dirs
     create_dirs([config.summary_dir, config.checkpoint_dir])
     doc_utils.doc_used_config(config)

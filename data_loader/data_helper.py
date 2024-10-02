@@ -1,7 +1,8 @@
 import numpy as np
 import os
 import pickle
-
+import torch
+from torch_geometric.data import Batch
 
 NUM_LABELS = {'ENZYMES': 3, 'COLLAB': 0, 'IMDBBINARY': 0, 'IMDBMULTI': 0, 'MUTAG': 7, 'NCI1': 37, 'NCI109': 38,
               'PROTEINS': 3, 'PTC': 22, 'DD': 89}
@@ -34,13 +35,13 @@ def load_dataset(ds_name):
                     curr_graph[j, int(vertex[k]), 0] = 1.
             curr_graph = normalize_graph(curr_graph)
             graphs.append(curr_graph)
-    graphs = np.array(graphs)
+    graphs = np.array(graphs, dtype="object")
     for i in range(graphs.shape[0]):
         graphs[i] = np.transpose(graphs[i], [2,0,1])
     return graphs, np.array(labels)
 
 
-def load_qm9(target_param, candidates):
+def load_qm9(target_param, candidates, debug):
     """
     Constructs the graphs and labels of QM9 data set, already split to train, val and test sets
     :return: 6 numpy arrays:
@@ -57,6 +58,12 @@ def load_qm9(target_param, candidates):
     train_graphs, train_labels, train_pyg_list = load_qm9_aux('train', target_param, candidates)
     val_graphs, val_labels, val_pyg_list = load_qm9_aux('val', target_param, candidates)
     test_graphs, test_labels, test_pyg_list = load_qm9_aux('test', target_param, candidates)
+
+    if debug:  # Return only the first 10 graphs for debugging
+        return (train_graphs[:10], train_labels[:10], train_pyg_list[:10],
+                val_graphs[:10], val_labels[:10], val_pyg_list[:10],
+                test_graphs[:10], test_labels[:10], test_pyg_list[:10])
+
     return (train_graphs, train_labels, train_pyg_list,
             val_graphs, val_labels, val_pyg_list,
             test_graphs, test_labels, test_pyg_list)
@@ -67,6 +74,7 @@ def load_qm9_aux(which_set, target_param, candidate_edges=False):
     Read and construct the graphs and labels of QM9 data set, already split to train, val and test sets
     :param which_set: 'test', 'train' or 'val'
     :param target_param: if not false, return the labels for this specific param only
+    :param candidate_edges: if True, return the PyG data list as well
     :return: graphs: (N,)
              labels: N x 12, (or Nx1 is target_param is not False)
              each graph of shape: 19 x Nodes x Nodes (CHW representation)
@@ -100,6 +108,84 @@ def load_qm9_aux(which_set, target_param, candidate_edges=False):
         # Returning the PyG data list as well
         with open(base_path_pyg, 'rb') as f:
             pyg_data_list = pickle.load(f)
+            for data in pyg_data_list:
+                pyg_graphs.append(data)
+
+        return graphs, labels, pyg_graphs
+
+    return graphs, labels, None
+
+
+def load_ZINC(target_param, candidates, debug):
+    """
+    Constructs the graphs and labels of ZINC data set, already split to train, val and test sets
+    :return: 6 numpy arrays:
+                 train_graphs: N_train,
+                 train_labels: N_train x 1
+                 val_graphs: N_val,
+                 val_labels: N_train x 1
+                 test_graphs: N_test,
+                 test_labels: N_test x 1
+                 each graph of shape: 25 x Nodes x Nodes (CHW representation)
+
+    update: added return of PyG data list for each set
+    """
+    train_graphs, train_labels, train_pyg_list = load_ZINC_aux('train', target_param, candidates)
+    val_graphs, val_labels, val_pyg_list = load_ZINC_aux('val', target_param, candidates)
+    test_graphs, test_labels, test_pyg_list = load_ZINC_aux('test', target_param, candidates)
+
+    if debug:  # Return only the first 10 graphs for debugging
+        return (train_graphs[:10], train_labels[:10], train_pyg_list[:10],
+                val_graphs[:10], val_labels[:10], val_pyg_list[:10],
+                test_graphs[:10], test_labels[:10], test_pyg_list[:10])
+
+    return (train_graphs, train_labels, train_pyg_list,
+            val_graphs, val_labels, val_pyg_list,
+            test_graphs, test_labels, test_pyg_list)
+
+
+def load_ZINC_aux(which_set, target_param, candidate_edges=False):
+    """
+    Read and construct the graphs and labels of ZINC data set, already split to train, val and test sets
+    :param which_set: 'test', 'train' or 'val'
+    :param target_param: if not false, return the labels for this specific param only
+    :param candidate_edges: if True, return the PyG data list as well
+    :return: graphs: (N,)
+             labels: N x 1
+             each graph of shape: 25 x Nodes x Nodes (CHW representation)
+    """
+    base_path = BASE_DIR + "/data/ZINC_candidates/ZINC_{}.p".format(which_set)
+    graphs, labels = [], []
+    with open(base_path, 'rb') as f:
+        data = pickle.load(f)
+        for instance in data:
+            labels.append(instance['y'])
+            nodes_num = instance['usable_features']['x'].shape[0]
+            graph = np.empty((nodes_num, nodes_num, 21 + 4))
+            for i in range(21):
+                # 13 features per node - for each, create a diag matrix of it as a feature
+                graph[:, :, i] = np.diag(instance['usable_features']['x'][:, i])
+            graph[:, :, 21:] = instance['usable_features']['edge_features']  # shape n x n x 4
+            graphs.append(graph)
+    graphs = np.array(graphs, dtype="object")
+    for i in range(graphs.shape[0]):
+        graphs[i] = np.transpose(graphs[i], [2, 0, 1])  # [nodes_num, nodes_num, features] -> [features, nodes_num, nodes_num]
+    labels = np.array(labels)  #.squeeze()  # shape N x 12  - remove the initial singleton dimension
+    if target_param is not False:  # regression over a specific target, not all 12 elements
+        labels = labels[:, target_param].reshape(-1, 1)  # shape N x 1
+
+    if candidate_edges:
+        base_path_pyg = BASE_DIR + "/data/ZINC_candidates/ZINC_pyg_{}.p".format(which_set)
+
+        pyg_graphs = []
+        # Returning the PyG data list as well
+        pyg_data_list = torch.load(base_path_pyg, weights_only=False)
+        # Check if the data is in a batch
+        if isinstance(pyg_data_list, Batch):
+            # Convert the batch to a list of individual graphs
+            pyg_graphs = pyg_data_list.to_data_list()
+        else:
+            # If not a batch, directly append individual graphs
             for data in pyg_data_list:
                 pyg_graphs.append(data)
 

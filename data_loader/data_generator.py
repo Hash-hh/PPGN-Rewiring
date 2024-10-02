@@ -9,7 +9,9 @@ class DataGenerator:
         # load data here
         self.batch_size = self.config.hyperparams.batch_size
         self.is_qm9 = self.config.dataset_name == 'QM9'
+        self.is_ZINC = self.config.dataset_name == 'ZINC'
         self.labels_dtype = torch.float32 if self.is_qm9 else torch.long
+        self.labels_dtype = torch.float32 if self.is_ZINC else torch.long
 
         self.load_data()
 
@@ -17,6 +19,8 @@ class DataGenerator:
     def load_data(self):
         if self.is_qm9:
             self.load_qm9_data()
+        elif self.is_ZINC:
+            self.load_ZINC_data()
         else:
             self.load_data_benchmark()
 
@@ -27,7 +31,7 @@ class DataGenerator:
         (train_graphs, train_labels, train_pyg_list,
          val_graphs, val_labels, val_pyg_list,
          test_graphs, test_labels, test_pyg_list) = \
-            helper.load_qm9(self.config.target_param, self.config.candidates)
+            helper.load_qm9(self.config.target_param, self.config.candidates, self.config.debug)
 
         # preprocess all labels by train set mean and std
         train_labels_mean = train_labels.mean(axis=0)
@@ -44,6 +48,33 @@ class DataGenerator:
         self.val_size = len(self.val_graphs)
         self.test_size = len(self.test_graphs)
         self.labels_std = train_labels_std  # Needed for postprocess, multiply mean abs distance by this std
+
+        self.train_pyg_list = train_pyg_list
+        self.val_pyg_list = val_pyg_list
+        self.test_pyg_list = test_pyg_list
+
+    # load ZINC data set
+    def load_ZINC_data(self):
+        (train_graphs, train_labels, train_pyg_list,
+         val_graphs, val_labels, val_pyg_list,
+         test_graphs, test_labels, test_pyg_list) = \
+            helper.load_ZINC(self.config.target_param, self.config.candidates, self.config.debug)
+
+        # preprocess all labels by train set mean and std
+        train_labels_mean = train_labels.mean(axis=0)
+        train_labels_std = train_labels.std(axis=0)
+        train_labels = (train_labels - train_labels_mean) / train_labels_std
+        val_labels = (val_labels - train_labels_mean) / train_labels_std
+        test_labels = (test_labels - train_labels_mean) / train_labels_std
+
+        self.train_graphs, self.train_labels = train_graphs, train_labels
+        self.val_graphs, self.val_labels = val_graphs, val_labels
+        self.test_graphs, self.test_labels = test_graphs, test_labels
+
+        self.train_size = len(self.train_graphs)
+        self.val_size = len(self.val_graphs)
+        self.test_size = len(self.test_graphs)
+        self.labels_std = train_labels_std
 
         self.train_pyg_list = train_pyg_list
         self.val_pyg_list = val_pyg_list
@@ -104,7 +135,7 @@ class DataGenerator:
         self.num_iterations_val = len(graphs)
         self.val_graphs_batches, self.val_labels_batches, self.val_graphs_pyg_batches = graphs, labels, graphs_pyg
 
-        if self.is_qm9:
+        if self.is_qm9 or self.is_ZINC:
             # Benchmark graphs have no test sets
             graphs, labels, graphs_pyg = helper.group_same_size(self.test_graphs, self.test_labels, self.test_pyg_list)
             graphs, labels, graphs_pyg = helper.split_to_batches(graphs, labels, self.batch_size, graphs_pyg)

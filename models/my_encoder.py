@@ -53,7 +53,7 @@ class FeatureEncoder(torch.nn.Module):
         #     self.rw_encoder = None
 
     def forward(self, batch):
-        x = self.linear_embed(batch.x)
+        x = self.linear_embed(batch.x.float())
         # if self.lap_encoder is not None:
         #     x = self.lap_encoder(x, batch)
         # if self.rw_encoder is not None:

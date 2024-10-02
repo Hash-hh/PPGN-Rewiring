@@ -45,13 +45,13 @@ class EdgeSelector(torch.nn.Module):
 
         edge_rel = data._slice_dict['x'].to(x.device)[:-1]  # [0,a,b,...]: nodes 0 to a are in graph 0, a to b in graph 1, ...
         data.num_edge_candidate = data.num_edge_candidate.to(x.device)
-        edge_candidate_idx = data.edge_candidate + edge_rel.repeat_interleave(data.num_edge_candidate)[:, None]  # treating all graphs (molecules)'s edges as one graph
+        edge_candidate_idx = data.edge_candidate + edge_rel.repeat_interleave(data.num_edge_candidate)[:, None]  # treating all graphs' cand edges as one graph
         edge_candidates = torch.hstack([x[edge_candidate_idx[:, 0]], x[edge_candidate_idx[:, 1]]])  # concatenate the two nodes' features of each edge
         select_edge_candidates = self.projector1(edge_candidates)
         if self.use_deletion_head:
             edge_index = data.edge_index
             if not self.directed_sampling:
-                edge_index = edge_index[:, edge_index[0] <= edge_index[1]]  # self loops included
+                edge_index = edge_index[:, edge_index[0] <= edge_index[1]]  # self loops included (only keep one direction)
             cur_edges = torch.hstack([x[edge_index[0]], x[edge_index[1]]])
             delete_edge_candidates = self.projector2(cur_edges)
         else:

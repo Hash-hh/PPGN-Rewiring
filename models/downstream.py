@@ -14,7 +14,11 @@ class Downstream(nn.Module):
         self.config = config
         use_new_suffix = config.architecture.new_suffix  # True or False
         block_features = config.architecture.block_features  # List of number of features in each regular block
-        original_features_num = (config.node_labels + 1 + 1) * 2  # Number of features of the input # last +1 is for edge weight, *2 is for cat of a and b
+        if config.down_stream_concat:  # if True, concatenate a and b before passing to the network
+            original_features_num = (config.node_labels + 1 + 1) * 2  # Number of features of the input # last +1 is for edge weight, *2 is for cat of a and b
+        else:
+            original_features_num = (config.node_labels + 1 + 1)
+
 
         # First part - sequential mlp blocks
         last_layer_features = original_features_num
@@ -44,7 +48,10 @@ class Downstream(nn.Module):
         a = torch.cat([a, a_padding], dim=1)
 
         b = new_data
-        x = torch.cat([a, b], dim=1)
+        if self.config.down_stream_concat:  # if True, concatenate a and b before passing to the network
+            x = torch.cat([a, b], dim=1)
+        else:
+            x = b
         scores = torch.tensor(0, device=repeated_data.device, dtype=a.dtype)
 
         for i, block in enumerate(self.reg_blocks):

@@ -42,7 +42,7 @@ class MlpBlock(nn.Module):
     def forward(self, inputs):
         out = inputs
         for conv_layer in self.convs:
-            out = self.activation(conv_layer(out))
+            out = self.activation(conv_layer(out.float()))
 
         return out
 

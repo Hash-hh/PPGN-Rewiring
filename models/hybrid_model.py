@@ -1,3 +1,4 @@
+from itertools import islice
 from typing import Callable
 
 import torch
@@ -14,51 +15,65 @@ from utils.pyg_to_tensor import transform_pyg_batch
 class HybridModel(torch.nn.Module):
     def __init__(self, config):
         super(HybridModel, self).__init__()
-        encoder = FeatureEncoder(dim_in=13, hidden=128)
-        edge_encoder = nn.Sequential(
-            nn.Linear(4, 128),
-            nn.ReLU(),
-            nn.Linear(128, 128))
+
         self.config = config
-        self.upstream = EdgeSelector(encoder=encoder, edge_encoder=edge_encoder,
-                                     in_dim=128,
-                                     hid_size=128,
-                                     gnn_layer=3,
-                                     mlp_layer=1,
-                                     use_deletion_head=True
-                                     ).cuda()
+        self.is_QM9 = config.dataset_name == 'QM9'
+        self.is_ZINC = config.dataset_name == 'ZINC'
 
-        simple_sampler = EdgeSIMPLEBatched()
+        if self.is_QM9:
+            dim_in = 13
+        elif self.is_ZINC:
+            dim_in = 21
+        else:
+            dim_in = 13
+            print("Unknown dataset, using default dim_in=13")
 
-        self.rewiring = GraphRewirer(add_k=config.sampling.add_k,
-                            del_k=config.sampling.del_k,
-                            train_ensemble=config.sampling.train_ensemble,
-                            val_ensemble=config.sampling.val_ensemble,
-                            sampler=simple_sampler)
+        if config.rewiring:
+            encoder = FeatureEncoder(dim_in=dim_in, hidden=32)  # 13 in the paper and 128 hidden
+            edge_encoder = nn.Sequential(
+                nn.Linear(4, 32),  # 4 in and 128 out in the paper
+                nn.ReLU(),
+                nn.Linear(32, 32))  # 128 in and 128 out in the paper
+            self.config = config
+            self.upstream = EdgeSelector(encoder=encoder, edge_encoder=edge_encoder,
+                                         in_dim=64,  # 128 in the paper
+                                         hid_size=64,  # 128 in the paper
+                                         gnn_layer=2,  # 3 in the paper
+                                         mlp_layer=1,
+                                         use_deletion_head=True
+                                         ).cuda()
 
-        self.downstream = Downstream(config).cuda()
-        # self.basemodel = BaseModel(config).cuda()
+            simple_sampler = EdgeSIMPLEBatched()
 
-    def forward(self, data, labels, graphs_pyg):
+            self.rewiring = GraphRewirer(add_k=config.sampling.add_k,
+                                del_k=config.sampling.del_k,
+                                train_ensemble=config.sampling.train_ensemble,
+                                val_ensemble=config.sampling.val_ensemble,
+                                sampler=simple_sampler)
 
-        repeated_data = data.repeat(3, 1, 1, 1)
+            self.downstream = Downstream(config).cuda()
 
-        graphs_pyg_batch = Batch.from_data_list(graphs_pyg)
+        else:
+            self.basemodel = BaseModel(config).cuda()
 
-        select_edge_candidates, delete_edge_candidates, edge_candidate_idx = self.upstream(graphs_pyg_batch)
-        new_data = self.rewiring(graphs_pyg_batch,
-                                          select_edge_candidates,  # addition logits
-                                          delete_edge_candidates,  # deletion logits
-                                          edge_candidate_idx)  # candidate edge index (wholesale)
+    def forward(self, data, labels, graphs_pyg, train=True):
 
-        new_data = transform_pyg_batch(new_data, num_features=20)
+        if self.config.rewiring:
+            rewring_samples = self.config.sampling.train_ensemble if train else self.config.sampling.val_ensemble
+            repeated_data = data.repeat(rewring_samples, 1, 1, 1)
 
+            graphs_pyg_batch = Batch.from_data_list(graphs_pyg)
+            select_edge_candidates, delete_edge_candidates, edge_candidate_idx = self.upstream(graphs_pyg_batch)
+            new_data = self.rewiring(graphs_pyg_batch,
+                                              select_edge_candidates,  # addition logits
+                                              delete_edge_candidates,  # deletion logits
+                                              edge_candidate_idx)  # candidate edge index (wholesale)
+            num_features = 20 if self.is_QM9 else 26
+            new_data = transform_pyg_batch(repeated_data, new_data, num_features=num_features, is_QM9=self.is_QM9, is_ZINC=self.is_ZINC)
+            scores = self.downstream(repeated_data, new_data)
+            repeated_labels = labels.repeat(rewring_samples, 1)
 
-        scores = self.downstream(repeated_data, new_data)
+            return scores, repeated_labels
 
-        repeated_labels = labels.repeat(3,1)
-
-        return scores, repeated_labels
-
-        # old network (for testing)
-        # return self.basemodel(data), labels
+        else:
+            return self.basemodel(data), labels

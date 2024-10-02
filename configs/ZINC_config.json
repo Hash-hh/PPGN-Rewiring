@@ -1,14 +1,13 @@
 {
   "num_epochs": 100,
   "gpu": "0",
-  "exp_name": "QM9",
+  "exp_name": "ZINC",
   "val_exist": true,
   "target_param": 0,
   "candidates": true,
-  "rewiring": false,
+  "rewiring": true,
   "down_stream_concat": false,
   "debug": true,
-
 
   "architecture": {
     "block_features": [400,400,400],
@@ -24,9 +23,9 @@
   },
 
   "sampling": {
-    "add_k": 5,
-    "del_k": 0,
-    "train_ensemble": 1,
+    "add_k": 20,
+    "del_k": 5,
+    "train_ensemble": 3,
     "val_ensemble": 1
   }
 }
