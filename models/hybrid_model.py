@@ -36,11 +36,12 @@ class HybridModel(torch.nn.Module):
                 nn.Linear(32, 32))  # 128 in and 128 out in the paper
             self.config = config
             self.upstream = EdgeSelector(encoder=encoder, edge_encoder=edge_encoder,
-                                         in_dim=64,  # 128 in the paper
-                                         hid_size=64,  # 128 in the paper
-                                         gnn_layer=2,  # 3 in the paper
+                                         in_dim=64,  # 128 in the paper  # 64
+                                         hid_size=64,  # 128 in the paper  # 64
+                                         gnn_layer=2,  # 3 in the paper  # 2
                                          mlp_layer=1,
-                                         use_deletion_head=True
+                                         use_deletion_head=True,
+                                         ensemble=config.sampling.ensemble,
                                          ).cuda()
 
             simple_sampler = EdgeSIMPLEBatched()
@@ -58,20 +59,24 @@ class HybridModel(torch.nn.Module):
 
     def forward(self, data, labels, graphs_pyg, train=True):
 
+        num_features = 20 if self.is_QM9 else 26
+
         if self.config.rewiring:
             rewring_samples = self.config.sampling.train_ensemble if train else self.config.sampling.val_ensemble
             repeated_data = data.repeat(rewring_samples, 1, 1, 1)
 
             graphs_pyg_batch = Batch.from_data_list(graphs_pyg)
             select_edge_candidates, delete_edge_candidates, edge_candidate_idx = self.upstream(graphs_pyg_batch)
-            new_data = self.rewiring(graphs_pyg_batch,
+            rewired_graph = self.rewiring(graphs_pyg_batch,
                                               select_edge_candidates,  # addition logits
                                               delete_edge_candidates,  # deletion logits
                                               edge_candidate_idx)  # candidate edge index (wholesale)
-            num_features = 20 if self.is_QM9 else 26
-            new_data = transform_pyg_batch(repeated_data, new_data, num_features=num_features, is_QM9=self.is_QM9, is_ZINC=self.is_ZINC)
+            new_data = transform_pyg_batch(repeated_data, rewired_graph, num_features=num_features, is_QM9=self.is_QM9, is_ZINC=self.is_ZINC)
             scores = self.downstream(repeated_data, new_data)
             repeated_labels = labels.repeat(rewring_samples, 1)
+
+            if self.config.return_rewiring:  # for visualization of rewiring
+                return scores, repeated_labels, rewired_graph
 
             return scores, repeated_labels
 

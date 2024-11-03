@@ -6,8 +6,11 @@
   "target_param": 0,
   "candidates": true,
   "rewiring": true,
-  "down_stream_concat": false,
-  "debug": true,
+  "return_rewiring": true,
+  "down_stream_concat": true,
+  "debug": false,
+  "wandb": true,
+  "train_percent": false,
 
   "architecture": {
     "block_features": [400,400,400],
@@ -18,13 +21,14 @@
   "hyperparams": {
     "learning_rate": 0.0001,
     "decay_rate": 0.8,
-    "batch_size": 64,
+    "batch_size": 32,
     "optimizer": "adam"
   },
 
   "sampling": {
     "add_k": 20,
     "del_k": 5,
+    "ensemble": 1,
     "train_ensemble": 3,
     "val_ensemble": 1
   }

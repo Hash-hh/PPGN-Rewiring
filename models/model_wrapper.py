@@ -1,5 +1,6 @@
 import os
 import models
+import wandb
 import torch
 import torch.nn.functional as F
 from models.base_model import BaseModel
@@ -17,11 +18,17 @@ class ModelWrapper(object):
     def save(self, best: bool, epoch: int, optimizer: torch.optim.Optimizer):
         filename = 'best.tar' if best else 'last.tar'
         print("Saving model as {}...".format(filename), end=' ')
+        save_path = os.path.join(self.config.checkpoint_dir, filename)
         torch.save({'epoch': epoch,
                     'model_state_dict': self.model.state_dict(),
                     'optimizer_state_dict': optimizer.state_dict()},
-                   os.path.join(self.config.checkpoint_dir, filename))
+                   save_path)
         print("Model saved.")
+
+        # Save model to WandB
+        # if self.config.get('wandb', False):
+        #     wandb.save(save_path)  # Upload the saved file to WandB
+        #     print("Model also saved in WandB.")
 
     # load latest checkpoint from the experiment path defined in the config file
     def load(self, best: bool):
@@ -58,8 +65,12 @@ class ModelWrapper(object):
 
     def run_model_get_loss_and_results(self, input, labels, graphs_pyg, train=True):
         # scores = self.model(input)  # for when only using base model
-        scores, labels = self.model(input, labels, graphs_pyg, train)  # feeding labels to get labels * train_ensemble
-        return self.loss_and_results(scores, labels)
+        if self.config.return_rewiring:
+            scores, repeated_labels, rewired_graph = self.model(input, labels, graphs_pyg, train)
+            return self.loss_and_results(scores, repeated_labels)
+        else:
+            scores, labels = self.model(input, labels, graphs_pyg, train)  # feeding labels to get labels * train_ensemble
+            return self.loss_and_results(scores, labels)
 
     def train(self):
         self.model.train()

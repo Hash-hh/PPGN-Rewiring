@@ -58,7 +58,7 @@ class DataGenerator:
         (train_graphs, train_labels, train_pyg_list,
          val_graphs, val_labels, val_pyg_list,
          test_graphs, test_labels, test_pyg_list) = \
-            helper.load_ZINC(self.config.target_param, self.config.candidates, self.config.debug)
+            helper.load_ZINC(self.config.target_param, self.config.candidates, self.config.debug, self.config.train_percent)
 
         # preprocess all labels by train set mean and std
         train_labels_mean = train_labels.mean(axis=0)

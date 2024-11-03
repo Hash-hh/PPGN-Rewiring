@@ -50,6 +50,7 @@ def main():
 
     print("Dataset: ", config.dataset_name)
     print("Debug: ", config.debug)
+    print("Percentage of training data: ", config.train_percent)
     print("lr = {0}".format(config.hyperparams.learning_rate))
     print("decay = {0}".format(config.hyperparams.decay_rate))
     if config.target_param is not False:  # (0 == False) while (0 is not False)

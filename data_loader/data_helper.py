@@ -116,7 +116,7 @@ def load_qm9_aux(which_set, target_param, candidate_edges=False):
     return graphs, labels, None
 
 
-def load_ZINC(target_param, candidates, debug):
+def load_ZINC(target_param, candidates, debug, train_percent=False):
     """
     Constructs the graphs and labels of ZINC data set, already split to train, val and test sets
     :return: 6 numpy arrays:
@@ -138,6 +138,11 @@ def load_ZINC(target_param, candidates, debug):
         return (train_graphs[:10], train_labels[:10], train_pyg_list[:10],
                 val_graphs[:10], val_labels[:10], val_pyg_list[:10],
                 test_graphs[:10], test_labels[:10], test_pyg_list[:10])
+    elif train_percent:
+        percent_select = round(len(train_graphs) * train_percent)
+        return (train_graphs[:percent_select], train_labels[:percent_select], train_pyg_list[:percent_select],
+                val_graphs, val_labels, val_pyg_list,
+                test_graphs, test_labels, test_pyg_list)
 
     return (train_graphs, train_labels, train_pyg_list,
             val_graphs, val_labels, val_pyg_list,

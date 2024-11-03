@@ -91,9 +91,9 @@ def sparsify_edge_weight_simplified(data, train):
         (sparsified) graph Batch data
     """
     if not train:
-        nonzero_idx = data.edge_weight.nonzero().reshape(-1)
-        data.edge_index = data.edge_index[:, nonzero_idx]
-        data.edge_weight = data.edge_weight[nonzero_idx]
-        if data.edge_attr is not None:
+        nonzero_idx = data.edge_weight.nonzero().reshape(-1)  # Find the indices of non-zero edge weight
+        data.edge_index = data.edge_index[:, nonzero_idx]  # Keep only the edges with non-zero weights
+        data.edge_weight = data.edge_weight[nonzero_idx]  # Keep only the non-zero edge weights
+        if data.edge_attr is not None:  # If the graph has additional edge attributes (features), keep only those for non-zero edges
             data.edge_attr = data.edge_attr[nonzero_idx]
     return data

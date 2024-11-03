@@ -4,6 +4,7 @@ import numpy as np
 import torch
 import torch.optim
 from utils import doc_utils
+import wandb
 
 
 class Trainer(object):
@@ -29,6 +30,11 @@ class Trainer(object):
             self.optimizer = torch.optim.Adam(params=self.model_wrapper.model.parameters(),
                                               lr=self.config.hyperparams.learning_rate)
         self.scheduler = torch.optim.lr_scheduler.StepLR(self.optimizer, step_size=20, gamma=config.hyperparams.decay_rate)
+
+        # Initialize WandB if config specifies it
+        if hasattr(config, 'wandb') and config.wandb:
+            wandb.init(project=config.exp_name)
+            wandb.config.update(config)
 
     def train(self):
         """
@@ -82,14 +88,28 @@ class Trainer(object):
         self.scheduler.step()
 
         loss_per_epoch = total_loss/self.data_loader.train_size
+
         if self.is_eval:  # not (self.is_QM9 or self.is_ZINC):
             acc_per_epoch = total_correct_labels_or_distances/self.data_loader.train_size
             print("\t\tEpoch-{}  loss:{:.4f} -- acc:{:.4f}\n".format(num_epoch, loss_per_epoch, acc_per_epoch))
+            if self.config.wandb:
+                wandb.log({
+                    'epoch': num_epoch,
+                    'train_loss': loss_per_epoch,
+                    'train_acc': acc_per_epoch
+                })
             return acc_per_epoch, loss_per_epoch
         else:
             dist_per_epoch = (total_correct_labels_or_distances * self.data_loader.labels_std)/self.data_loader.train_size
             print("\t\tEpoch-{}  loss:{:.4f} -- mean_distances:\n{}\n".format(num_epoch, loss_per_epoch, dist_per_epoch))
+            if self.config.wandb:
+                wandb.log({
+                    'epoch': num_epoch,
+                    'train_loss': loss_per_epoch,
+                    'train_mean_distance': dist_per_epoch
+                })
             return dist_per_epoch, loss_per_epoch
+
 
     def train_step(self):
         """
@@ -143,6 +163,12 @@ class Trainer(object):
         if not self.is_eval:  # (self.is_QM9 and self.is_ZINC):
             val_dists = (total_correct_or_dist*self.data_loader.labels_std)/self.data_loader.val_size
             print("\t\tVal-{}  loss:{:.4f} -- mean_distances:\n{}\n".format(epoch, val_loss, val_dists))
+            if self.config.wandb:
+                wandb.log({
+                    'epoch': epoch,
+                    'val_loss': val_loss,
+                    'val_mean_distance': val_dists
+                })
 
             # save best model by validation loss to be used for test set
             if val_loss < self.best_val_loss:

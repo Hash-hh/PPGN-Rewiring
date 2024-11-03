@@ -1,13 +1,15 @@
 {
-  "num_epochs": 100,
+  "num_epochs": 3,
   "gpu": "0",
   "exp_name": "QM9",
   "val_exist": true,
   "target_param": 0,
   "candidates": true,
-  "rewiring": false,
-  "down_stream_concat": false,
-  "debug": true,
+  "rewiring": true,
+  "down_stream_concat": true,
+  "debug": false,
+  "wandb": true,
+  "train_percent": false,
 
 
   "architecture": {
@@ -19,14 +21,15 @@
   "hyperparams": {
     "learning_rate": 0.0001,
     "decay_rate": 0.8,
-    "batch_size": 64,
+    "batch_size": 32,
     "optimizer": "adam"
   },
 
   "sampling": {
-    "add_k": 5,
-    "del_k": 0,
-    "train_ensemble": 1,
-    "val_ensemble": 1
+    "add_k": 20,
+    "del_k": 5,
+    "train_ensemble": 3,
+    "val_ensemble": 1,
+    "ensemble": 1
   }
 }

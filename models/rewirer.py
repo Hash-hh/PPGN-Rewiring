@@ -135,7 +135,7 @@ class GraphRewirer(torch.nn.Module):
             add_edge_weight = sampled_edge_weights.permute((1, 2, 3, 0))[real_node_mask].reshape(-1, E * VE)  # for each add candidate, we have E x VE scores (marginal from SIMPLE)
             add_edge_index = edge_candidate_idx.T
 
-            if not self.directed_sampling:
+            if not self.directed_sampling:  # get double the number of edges for undirected graphs (a-b and b-a)
                 add_edge_index, add_edge_weight = to_undirected(add_edge_index,  # candidate edges in COO format [2, nnedge_candid]
                                                                 add_edge_weight,  # candidate edge weights  [nnedge_candid, E x VE]
                                                                 num_nodes=dat_batch.num_nodes)
@@ -159,7 +159,7 @@ class GraphRewirer(torch.nn.Module):
                 batch_deletion_logits, real_node_mask = to_dense_batch(deletion_logits,
                                                                        batch_idx,
                                                                        max_num_nodes=nedges.max())
-            else:
+            else:  # for undirected graphs, we need to consider only the edges coming inward (a-b, not b-a)
                 direct_mask = dat_batch.edge_index[0] <= dat_batch.edge_index[1]  # True if edge is coming inward
                 directed_edge_index = dat_batch.edge_index[:, direct_mask]  # only the edges coming inward (no double counting)
                 num_direct_edges = scatter(direct_mask.long(),  # number of edges for each graph coming inward for each graph
@@ -195,7 +195,7 @@ class GraphRewirer(torch.nn.Module):
         else:
             del_edge_weight = None
 
-        return del_edge_weight
+        return del_edge_weight  # e.g [1, 0, 1, 0, 1, 0, ...] for each edge  - 1: keep, 0: delete
 
     def merge_del_add(self,
                       rewired_batch: Batch,
@@ -209,7 +209,7 @@ class GraphRewirer(torch.nn.Module):
         Add edge_attr - pad zeros for the added edges."""
         merged_edge_index = torch.cat([rewired_batch.edge_index, add_edge_index], dim=1)
         merged_edge_weight = torch.cat([del_edge_weight, add_edge_weight], dim=-1)
-        if rewired_batch.edge_attr is not None:  # if edge_attr exists, we need to pad zeros for the sampled edges
+        if rewired_batch.edge_attr is not None:  # if edge_attr exists, we need to pad [zeros] for the sampled edges
             merged_edge_attr = torch.cat([rewired_batch.edge_attr,
                                           rewired_batch.edge_attr.new_zeros(add_edge_weight.shape[-1],
                                                                             rewired_batch.edge_attr.shape[1])], dim=0)
@@ -235,7 +235,7 @@ class GraphRewirer(torch.nn.Module):
             rewired_batch.edge_index = merged_edge_index
             rewired_batch.edge_attr = merged_edge_attr
             rewired_batch.edge_weight = merged_edge_weight
-            rewired_batch = sparsify_edge_weight_simplified(rewired_batch, self.training)
+            rewired_batch = sparsify_edge_weight_simplified(rewired_batch, self.training)  # removing edges (with weight 0) if validation
         return rewired_batch
 
     def merge_add(self,

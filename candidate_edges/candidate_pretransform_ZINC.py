@@ -31,9 +31,16 @@ for which_set in which_list:
     pyg_data_list = ZINC_to_pyg_data_list(pyg_data_list_raw)  # preprocess the data (otherwise it will be too large)
 
     # Filter out graphs with fewer than `min_num_nodes` nodes
-    min_num_nodes = 20  # 25
-    max_num_nodes = 50  # 50
+    min_num_nodes = 2  # 25
+    max_num_nodes = 100  # 50
+
+    # if which_set == 'train':  # only filter the training set
+    #     filtered_pyg_data = [data for data in pyg_data_list if min_num_nodes <= data.x.size(0) <= max_num_nodes]
+    # else:
+    #     filtered_pyg_data = pyg_data_list
+
     filtered_pyg_data = [data for data in pyg_data_list if min_num_nodes <= data.x.size(0) <= max_num_nodes]
+
 
     # print(f"Processing {which_set} data...")
     filtered_pyg_data_list = filtered_pyg_data

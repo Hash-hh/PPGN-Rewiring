@@ -57,4 +57,4 @@ class EdgeSelector(torch.nn.Module):
         else:
             delete_edge_candidates = None
 
-        return select_edge_candidates, delete_edge_candidates, edge_candidate_idx
+        return select_edge_candidates, delete_edge_candidates, edge_candidate_idx  # edge_candidate_idx is the 'wholesale' edge index
